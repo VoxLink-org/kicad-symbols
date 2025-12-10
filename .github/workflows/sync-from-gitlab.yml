@@ -1,51 +1,76 @@
-name: Sync from GitLab
+name: Gen KiCad Docs
 
 on:
   schedule:
-    # Run daily at 2 AM UTC
+    # 每天 UTC 2:00 (北京时间 10:00) 运行
     - cron: '0 2 * * *'
-  workflow_dispatch: # Allow manual triggering
+  workflow_dispatch: # 允许手动点按钮触发
+
+permissions:
+  contents: write
 
 jobs:
-  sync:
+  generate-and-deploy:
     runs-on: ubuntu-latest
     
     steps:
+    # 1. 检出你的代码库 (包含 gen_kicad_docs.py)
     - name: Checkout repository
       uses: actions/checkout@v4
+
+    # 2. 安装 Python 环境和依赖
+    - name: Set up Python
+      uses: actions/setup-python@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        fetch-depth: 0
+        python-version: '3.10'
         
-    - name: Configure Git
+    - name: Install dependencies
+      run: pip install sexpdata
+
+    # 3. 运行你的 Python 脚本
+    # 脚本会把 KiCad 库下载到 temp_kicad_source，并把文档生成到 docs_output
+    - name: Run Generator Script
+      run: python gen_kicad_docs.py
+
+    # 4. 将生成的 docs_output 推送到 docs 分支
+    - name: Deploy to docs branch
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+        # 检查是否生成了文件
+        if [ ! -d "docs_output" ]; then
+          echo "Error: docs_output directory not found!"
+          exit 1
+        fi
+
+        # 将生成的文档暂存到上级目录，防止切分支时丢失
+        # 注意：Action 的工作目录是 GITHUB_WORKSPACE
+        mv docs_output ../docs_temp
         
-    - name: Add GitLab remote
-      run: |
-        git remote add gitlab https://gitlab.com/kicad/libraries/kicad-symbols.git
-        git fetch gitlab
+        # 切换到孤儿分支 (Orphan Branch)
+        # 这会创建一个无历史记录的全新 docs 分支，或者覆盖现有的
+        git checkout --orphan docs
         
-    - name: Sync from GitLab
-      run: |
-        # Get the default branch name from GitLab
-        GITLAB_DEFAULT_BRANCH=$(git ls-remote --symref gitlab HEAD | grep '^ref:' | awk '{print $2}' | sed 's|refs/heads/||')
-        echo "GitLab default branch: $GITLAB_DEFAULT_BRANCH"
+        # 清空工作区 (删除 main 分支的所有代码，确保 docs 分支只有文档)
+        git rm -rf .
         
-        # Checkout the default branch
-        git checkout $GITLAB_DEFAULT_BRANCH || git checkout -b $GITLAB_DEFAULT_BRANCH
+        # 清理未被 Git 追踪的残留文件 (比如刚才 clone 下来的 KiCad 源文件、Python 脚本等)
+        # 这一步很重要，保证 docs 分支纯净
+        git clean -fdx
         
-        # Reset to GitLab's state
-        git reset --hard gitlab/$GITLAB_DEFAULT_BRANCH
+        # 将生成的文档移回来
+        mv ../docs_temp/* .
+        rmdir ../docs_temp
         
-        # Force push to GitHub (this will overwrite any changes)
-        git push origin $GITLAB_DEFAULT_BRANCH --force
+        # 提交并强制推送
+        git add .
         
-    - name: Sync master branch
-      run: |
-        # Sync master branch specifically
-        echo "Syncing master branch"
-        git checkout -B master gitlab/master
-        git push origin master --force
-        
+        # 只有在有变化时才 commit
+        if ! git diff --cached --quiet; then
+          git commit -m "Update Context7 docs [$(date -u)]"
+          git push origin docs --force
+          echo "Success: Docs pushed to docs branch."
+        else
+          echo "No changes detected. Skipping push."
+        fi
