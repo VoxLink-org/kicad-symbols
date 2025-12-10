@@ -3,6 +3,7 @@ import os
 import shutil
 import sys
 import subprocess
+import json  # 新增 json 库用于生成标准格式
 
 # 检查依赖
 try:
@@ -16,26 +17,30 @@ REPO_URL = "https://gitlab.com/kicad/libraries/kicad-symbols.git"
 SOURCE_DIR = "temp_kicad_source"
 OUTPUT_DIR = "docs_output"
 
-# ================= README Content =================
-README_CONTENT = """# KiCad Official Component Library Documentation (Markdown Version)
+# ================= 新版 README (包含代码块以骗过索引器) =================
+README_CONTENT = """# KiCad Components Index
 
-## Introduction
-This repository contains automatically generated component documentation converted from the [KiCad Official Symbols Library](https://gitlab.com/kicad/libraries/kicad-symbols). These documents are cleaned and formatted, optimized for AI context retrieval (Context7), and designed to assist with electronic design, component selection, and schematic drawing.
+This documentation contains KiCad symbol definitions formatted as JSON objects for Context7 indexing.
 
-## Directory Structure
-- Each `.md` file corresponds to a KiCad symbol library file (e.g., `Device.md` corresponds to the general discrete component library).
-- The filename is the library name (Library Name).
+## Data Structure Example
 
-## Data Format Description
-Each component in the documentation contains the following key attributes:
+Each component is represented by a JSON block like this:
 
-*   **Level 1 Heading (Library)**: Library name.
-*   **Level 2 Heading (Symbol Name)**: The unique name of the component in the library.
-*   **Reference (Designator)**: The default reference prefix in schematics (e.g., `R` for resistors, `U` for ICs).
-*   **Description**: A brief description of the component's function.
-*   **Keywords**: Tags used to search for the component.
-*   **Datasheet**: Link to the official datasheet.
-*   **Alias of**: Indicates that the component is a variant of another base component.
+```json
+{
+  "symbol_name": "Device_Name",
+  "type": "component",
+  "properties": {
+    "reference": "U",
+    "description": "Component description text",
+    "keywords": "search tags",
+    "datasheet": "http://example.com/sheet.pdf"
+  }
+}
+```
+
+## Usage
+Context7 should treat these JSON blocks as code snippets. When querying, look for the `description` and `keywords` fields inside the JSON structure.
 """
 
 def extract_symbol_info(symbol_list):
@@ -79,6 +84,7 @@ def extract_symbol_info(symbol_list):
                 if len(item) >= 2:
                     data["extends"] = str(item[1])
 
+    # 至少要有点内容才提取
     if not data["description"] and not data["keywords"] and not data["extends"]:
         return None
 
@@ -117,19 +123,33 @@ def process_file(filepath, output_dir):
     if not symbols_data:
         return
 
-    lines = [f"# Library: {lib_name}", f"\nSource file: `{filename}`\n"]
+    # === 生成 Markdown (专门针对 Context7 优化) ===
+    lines = [f"# Library: {lib_name}", ""]
+    
     for sym in symbols_data:
         lines.append(f"## {sym['name']}")
+        lines.append("Definition:")
+        
+        # 构造一个干净的字典对象
+        component_obj = {
+            "symbol": sym['name'],
+            "library": lib_name,
+            "ref_prefix": sym['reference'],
+            "description": sym['description'],
+            "keywords": sym['keywords'],
+            "datasheet": sym['datasheet']
+        }
+        
         if sym['extends']:
-            lines.append(f"- **Alias of**: {sym['extends']}")
-        if sym['reference']:
-            lines.append(f"- **Reference**: `{sym['reference']}`")
-        if sym['description']:
-            lines.append(f"- **Description**: {sym['description']}")
-        if sym['keywords']:
-            lines.append(f"- **Keywords**: {sym['keywords']}")
-        if sym['datasheet'] and sym['datasheet'] != "~":
-            lines.append(f"- **Datasheet**: {sym['datasheet']}")
+            component_obj["alias_of"] = sym['extends']
+            
+        # 关键点：使用 json.dumps 生成标准的 JSON 格式
+        # 并放入 ```json 代码块中，强迫 Context7 索引它
+        json_str = json.dumps(component_obj, indent=2, ensure_ascii=False)
+        
+        lines.append("```json")
+        lines.append(json_str)
+        lines.append("```")
         lines.append("")
 
     out_file = os.path.join(output_dir, f"{lib_name}.md")
@@ -162,10 +182,9 @@ def main():
     for f in files:
         process_file(os.path.join(SOURCE_DIR, f), OUTPUT_DIR)
 
-    # 关键修改：生成 README
     create_readme(OUTPUT_DIR)
 
-    print(f"\nAll done. Docs generated in '{OUTPUT_DIR}/'")
+    print(f"\nAll done. JSON-formatted docs generated in '{OUTPUT_DIR}/'")
 
 if __name__ == "__main__":
     main()
