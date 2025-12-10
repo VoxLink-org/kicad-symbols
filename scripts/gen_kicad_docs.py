@@ -16,26 +16,26 @@ REPO_URL = "https://gitlab.com/kicad/libraries/kicad-symbols.git"
 SOURCE_DIR = "temp_kicad_source"
 OUTPUT_DIR = "docs_output"
 
-# ================= README 内容 =================
-README_CONTENT = """# KiCad 官方元器件库文档 (Markdown版)
+# ================= README Content =================
+README_CONTENT = """# KiCad Official Component Library Documentation (Markdown Version)
 
-## 简介
-本仓库包含了从 [KiCad Official Symbols Library](https://gitlab.com/kicad/libraries/kicad-symbols) 自动转换生成的元器件文档。这些文档经过清洗和格式化，专为 AI 上下文检索 (Context7) 优化，用于辅助电子设计、元器件选型和原理图绘制。
+## Introduction
+This repository contains automatically generated component documentation converted from the [KiCad Official Symbols Library](https://gitlab.com/kicad/libraries/kicad-symbols). These documents are cleaned and formatted, optimized for AI context retrieval (Context7), and designed to assist with electronic design, component selection, and schematic drawing.
 
-## 目录结构
-- 每个 `.md` 文件对应一个 KiCad 符号库文件 (例如 `Device.md` 对应通用分立元器件库)。
-- 文件名即为库名称 (Library Name)。
+## Directory Structure
+- Each `.md` file corresponds to a KiCad symbol library file (e.g., `Device.md` corresponds to the general discrete component library).
+- The filename is the library name (Library Name).
 
-## 数据格式说明
-文档中的每个元器件包含以下关键属性：
+## Data Format Description
+Each component in the documentation contains the following key attributes:
 
-*   **一级标题 (Library)**: 库名称。
-*   **二级标题 (Symbol Name)**: 元器件在库中的唯一名称。
-*   **Reference (位号)**: 原理图中默认的位号前缀 (例如 `R` 代表电阻, `U` 代表芯片)。
-*   **Description (描述)**: 元器件的功能简述。
-*   **Keywords (关键词)**: 用于搜索该元器件的标签。
-*   **Datasheet (数据手册)**: 官方数据手册链接。
-*   **Alias of (别名)**: 表示该元器件是另一个基础元器件的变体。
+*   **Level 1 Heading (Library)**: Library name.
+*   **Level 2 Heading (Symbol Name)**: The unique name of the component in the library.
+*   **Reference (Designator)**: The default reference prefix in schematics (e.g., `R` for resistors, `U` for ICs).
+*   **Description**: A brief description of the component's function.
+*   **Keywords**: Tags used to search for the component.
+*   **Datasheet**: Link to the official datasheet.
+*   **Alias of**: Indicates that the component is a variant of another base component.
 """
 
 def extract_symbol_info(symbol_list):

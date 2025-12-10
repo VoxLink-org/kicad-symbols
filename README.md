@@ -1,42 +1,32 @@
-# KiCad Symbols Mirror
+# KiCad Official Component Library Documentation (Markdown Version)
 
-This repository is a mirror of the official KiCad symbols library from GitLab, automatically synced daily.
+## Introduction
+This repository contains automatically generated component documentation converted from the [KiCad Official Symbols Library](https://gitlab.com/kicad/libraries/kicad-symbols). These documents are cleaned and formatted, optimized for AI context retrieval (Context7), and designed to assist with electronic design, component selection, and schematic drawing.
 
-## Source Repository
-- **Original**: https://gitlab.com/kicad/libraries/kicad-symbols.git
-- **Mirror**: This repository
+## Directory Structure
+- Each `.md` file corresponds to a KiCad symbol library file (e.g., `Device.md` corresponds to the general discrete component library).
+- The filename is the library name (Library Name).
 
-## Automatic Sync
+## Data Format Description
+Each component in the documentation contains the following key attributes:
 
-This repository uses GitHub Actions to automatically sync from the upstream GitLab repository daily at 2 AM UTC. The sync includes:
+*   **Level 1 Heading (Library)**: Library name.
+*   **Level 2 Heading (Symbol Name)**: The unique name of the component in the library.
+*   **Reference (Designator)**: The default reference prefix in schematics (e.g., `R` for resistors, `U` for ICs).
+*   **Description**: A brief description of the component's function.
+*   **Keywords**: Tags used to search for the component.
+*   **Datasheet**: Link to the official datasheet.
+*   **Alias of**: Indicates that the component is a variant of another base component.
 
-- Master branch only
-- Complete repository history
+## Generation Method
+The documentation is automatically generated through the [`gen_kicad_docs.py`](scripts/gen_kicad_docs.py) script, which:
+- Clones source code from the KiCad official symbol library
+- Parses `.kicad_sym` file format
+- Extracts component information and converts it to Markdown format
+- Generates easy-to-read and searchable documentation
 
-### Manual Sync
-
-You can also manually trigger a sync by:
-1. Going to the [Actions tab](../../actions) in this repository
-2. Selecting "Sync from GitLab" workflow
-3. Clicking "Run workflow"
-
-### Setup Requirements
-
-The sync action runs automatically without any additional setup. However, ensure that:
-
-1. The repository has GitHub Actions enabled
-2. The default branch permissions allow force pushes (required for sync)
-
-### Sync Behavior
-
-- **Force Push**: The sync uses force push to ensure complete alignment with the upstream repository
-- **Overwrite**: Any changes in this mirror will be overwritten by the upstream changes
-- **Complete Sync**: All branches, tags, and history are synchronized
-
-## Usage
-
-This mirror can be used as a fallback or alternative source for KiCad symbols, especially in environments where GitLab access might be restricted.
-
-## Contributing
-
-Since this is a mirror repository, all contributions should be made to the original GitLab repository at https://gitlab.com/kicad/libraries/kicad-symbols.git
+## Use Cases
+- AI-assisted electronic design
+- Quick component search and retrieval
+- Schematic drawing reference
+- Electronic design automation tool integration
