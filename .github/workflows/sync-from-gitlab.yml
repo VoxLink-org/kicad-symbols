@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    # 1. 检出你的代码库 (包含 gen_kicad_docs.py)
+    # 1. 检出你的代码库 (包含 scripts/gen_kicad_docs.py)
     - name: Checkout repository
       uses: actions/checkout@v4
 
@@ -30,7 +30,7 @@ jobs:
     # 3. 运行你的 Python 脚本
     # 脚本会把 KiCad 库下载到 temp_kicad_source，并把文档生成到 docs_output
     - name: Run Generator Script
-      run: python gen_kicad_docs.py
+      run: python scripts/gen_kicad_docs.py
 
     # 4. 将生成的 docs_output 推送到 docs 分支
     - name: Deploy to docs branch
