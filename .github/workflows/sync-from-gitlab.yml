@@ -1,0 +1,51 @@
+name: Sync from GitLab
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+        
+    - name: Configure Git
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        
+    - name: Add GitLab remote
+      run: |
+        git remote add gitlab https://gitlab.com/kicad/libraries/kicad-symbols.git
+        git fetch gitlab
+        
+    - name: Sync from GitLab
+      run: |
+        # Get the default branch name from GitLab
+        GITLAB_DEFAULT_BRANCH=$(git ls-remote --symref gitlab HEAD | grep '^ref:' | awk '{print $2}' | sed 's|refs/heads/||')
+        echo "GitLab default branch: $GITLAB_DEFAULT_BRANCH"
+        
+        # Checkout the default branch
+        git checkout $GITLAB_DEFAULT_BRANCH || git checkout -b $GITLAB_DEFAULT_BRANCH
+        
+        # Reset to GitLab's state
+        git reset --hard gitlab/$GITLAB_DEFAULT_BRANCH
+        
+        # Force push to GitHub (this will overwrite any changes)
+        git push origin $GITLAB_DEFAULT_BRANCH --force
+        
+    - name: Sync master branch
+      run: |
+        # Sync master branch specifically
+        echo "Syncing master branch"
+        git checkout -B master gitlab/master
+        git push origin master --force
+        
