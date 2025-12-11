@@ -2,3 +2,6 @@ temp*
 docs_output*
 .env
 import.sql
+node_modules/
+.wrangler/
+.venv

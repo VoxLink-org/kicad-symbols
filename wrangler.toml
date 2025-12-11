@@ -1,5 +1,5 @@
 name = "kicad-component-search" # 项目名字，随便起
-main = "src/worker.js"          # 后面做查询接口时会用到，先占个位
+main = "src/index.js"
 compatibility_date = "2024-01-01"
 
 # D1 数据库配置
