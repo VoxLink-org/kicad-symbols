@@ -28,7 +28,7 @@ export default {
         const terms = query.trim().split(/\s+/);
         
         // 2. 构建 WHERE 子句
-        // 逻辑是：每个关键词都必须出现在 (symbol 或 description 或 keywords 或 lcsc_id) 中
+        // 逻辑是：每个关键词都必须出现在 (symbol 或 description 或 keywords 或 attributes) 中
         const conditions = [];
         const params = [];
 
@@ -39,7 +39,7 @@ export default {
             description LIKE ? OR 
             keywords LIKE ? OR 
             value LIKE ? OR
-            lcsc_id LIKE ?
+            attributes LIKE ?
           )`);
           // 为上面 5 个 ? 填充同一个关键词
           params.push(likeTerm, likeTerm, likeTerm, likeTerm, likeTerm);
@@ -52,7 +52,7 @@ export default {
         const sql = `
           SELECT * FROM components 
           WHERE ${whereClause} 
-          ORDER BY stock DESC, id ASC 
+          ORDER BY stock DESC, price ASC, id ASC 
           LIMIT ?
         `;
         

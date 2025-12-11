@@ -1,0 +1,208 @@
+openapi: 3.0.3
+info:
+  title: KiCad Library Search API
+  description: |
+    A RESTful API for searching KiCad electronic components from a database.
+    This API allows users to search for components by keywords and returns detailed component information.
+  version: 1.0.0
+  contact:
+    name: API Support
+    github: https://github.com/VoxLink-org/kicad-symbols/
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://kicad-component-search.wanghsinche.workers.dev
+    description: Production server (replace with your actual Cloudflare Worker domain)
+  - url: http://localhost:8787
+    description: Local development server
+
+paths:
+  /search:
+    get:
+      summary: Search KiCad components
+      description: |
+        Search for KiCad components by keywords. The search looks for matches in 
+        symbol names, descriptions, keywords, values, and attributes.
+        Multiple keywords can be provided separated by spaces - all keywords must match.
+      operationId: searchComponents
+      tags:
+        - Components
+      parameters:
+        - name: q
+          in: query
+          description: Search query string (keywords separated by spaces)
+          required: true
+          schema:
+            type: string
+            example: "LM393 SOIC"
+        - name: limit
+          in: query
+          description: Maximum number of results to return (default 20)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 10
+      responses:
+        '200':
+          description: Successful search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Component'
+              example:
+                - id: 1
+                  symbol: LM393N
+                  description: Low Power Dual Voltage Comparator
+                  keywords: "comparator dual low-power"
+                  value: "LM393"
+                  stock: 150
+                  price: 0.85
+                  attributes:
+                    package: "DIP-8"
+                    manufacturer: "Texas Instruments"
+                    voltage_range: "2V-36V"
+                    temperature_range: "-40°C to +85°C"
+                - id: 2
+                  symbol: LM393DR
+                  description: Low Power Dual Voltage Comparator
+                  keywords: "comparator dual low-power smd"
+                  value: "LM393"
+                  stock: 89
+                  price: 1.20
+                  attributes:
+                    package: "SOIC-8"
+                    manufacturer: "Texas Instruments"
+                    voltage_range: "2V-36V"
+                    temperature_range: "-40°C to +85°C"
+        '400':
+          description: Bad request - missing required parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Missing 'q' parameter"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Database query failed"
+      x-codeSamples:
+        - lang: curl
+          source: |
+            curl -X GET "https://kicad-component-search.wanghsinche.workers.dev/search?q=LM393&limit=10"
+        - lang: JavaScript
+          source: |
+            const response = await fetch('https://kicad-component-search.wanghsinche.workers.dev/search?q=LM393&limit=10');
+            const components = await response.json();
+            console.log(components);
+        - lang: Python
+          source: |
+            import requests
+            response = requests.get('https://kicad-component-search.wanghsinche.workers.dev/search', params={'q': 'LM393', 'limit': 10})
+            components = response.json()
+            print(components)
+
+  /:
+    get:
+      summary: API health check
+      description: Returns a welcome message indicating the API is running
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: API is running
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "KiCad Library Search API is running! Try /search?q=LM393"
+
+components:
+  schemas:
+    Component:
+      type: object
+      description: KiCad component information
+      properties:
+        id:
+          type: integer
+          description: Unique component identifier
+          example: 1
+        symbol:
+          type: string
+          description: Component symbol name
+          example: "LM393N"
+        description:
+          type: string
+          description: Component description
+          example: "Low Power Dual Voltage Comparator"
+        keywords:
+          type: string
+          description: Search keywords associated with the component
+          example: "comparator dual low-power"
+        value:
+          type: string
+          description: Component value or part number
+          example: "LM393"
+        stock:
+          type: integer
+          description: Available stock quantity
+          example: 150
+        price:
+          type: number
+          format: float
+          description: Component price
+          example: 0.85
+        attributes:
+          type: object
+          description: Additional component attributes (parsed from JSON)
+          additionalProperties: true
+          example:
+            package: "DIP-8"
+            manufacturer: "Texas Instruments"
+            voltage_range: "2V-36V"
+            temperature_range: "-40°C to +85°C"
+      required:
+        - id
+        - symbol
+        - description
+        - stock
+        - price
+
+    Error:
+      type: object
+      description: Error response
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Missing 'q' parameter"
+      required:
+        - error
+
+tags:
+  - name: Components
+    description: Component search and management operations
+  - name: Health
+    description: API health and status operations
+
+externalDocs:
+  description: Find more information about KiCad
+  url: https://www.kicad.org/
+
+x-tagGroups:
+  - name: API Operations
+    tags:
+      - Components
+      - Health
