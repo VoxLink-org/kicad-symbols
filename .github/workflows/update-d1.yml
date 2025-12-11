@@ -1,0 +1,42 @@
+name: Update KiCad Library to D1
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # 每天运行
+  workflow_dispatch:
+
+jobs:
+  update-db:
+    runs-on: ubuntu-latest
+    name: Parse and Upload to D1
+    
+    steps:
+      # 1. 下载代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 准备 Python 环境 (用于 ETL)
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Install Python dependencies
+        run: pip install sexpdata
+
+      # 3. 运行 Python 生成 import.sql
+      - name: Generate SQL
+        run: python scripts/gen_kicad_sql.py
+
+      # 4. 检查 SQL 文件是否生成 (调试用)
+      - name: Check SQL file
+        run: ls -lh import.sql
+
+      # 5. 使用 Wrangler 写入 Cloudflare D1
+      - name: Execute SQL on D1
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # 替换成你在 Cloudflare 上创建的数据库名字
+          command: d1 execute my-kicad-db --file=import.sql
