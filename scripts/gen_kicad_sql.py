@@ -151,9 +151,29 @@ def main():
 
     # 2. 准备 SQL 文件
     sql_lines = []
-    # 开启事务加速写入
-    sql_lines.append("BEGIN TRANSACTION;")
-    # 可选：如果你想每次全量刷新，可以先删除
+    
+    # === 修改点 1: 删除这一行 ===
+    # sql_lines.append("BEGIN TRANSACTION;") 
+    
+    # 建议加上建表语句，防止表不存在报错
+    sql_lines.append("""
+    CREATE TABLE IF NOT EXISTS components (
+        id INTEGER PRIMARY KEY,
+        library TEXT,
+        symbol TEXT,
+        value TEXT,
+        footprint TEXT,
+        datasheet TEXT,
+        description TEXT,
+        lcsc_id TEXT,
+        stock INTEGER,
+        price TEXT,
+        attributes TEXT,
+        keywords TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+    # 如果你想每次全量覆盖，可以取消下面这行的注释，但会消耗更多额度
     # sql_lines.append("DELETE FROM components;") 
     
     files = [f for f in os.listdir(SOURCE_DIR) if f.endswith(".kicad_sym")]
@@ -162,8 +182,8 @@ def main():
     print(f"Found {len(files)} symbol files. Generaring SQL...")
     for f in files:
         process_file(os.path.join(SOURCE_DIR, f), sql_lines)
-
-    sql_lines.append("COMMIT;")
+    # === 修改点 2: 删除这一行 ===
+    # sql_lines.append("COMMIT;")
 
     # 3. 写入文件
     with open(OUTPUT_SQL_FILE, 'w', encoding='utf-8') as f:

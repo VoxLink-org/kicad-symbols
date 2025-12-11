@@ -34,9 +34,9 @@ jobs:
 
       # 5. 使用 Wrangler 写入 Cloudflare D1
       - name: Execute SQL on D1
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # 替换成你在 Cloudflare 上创建的数据库名字
-          command: d1 execute my-kicad-db --file=import.sql
+          command: d1 execute my-kicad-db --file=import.sql --remote
