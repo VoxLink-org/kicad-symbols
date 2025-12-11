@@ -13,7 +13,6 @@ except ImportError:
     sys.exit(1)
 
 # ================= 配置 =================
-REPO_URL = "https://gitlab.com/kicad/libraries/kicad-symbols.git" # 或者你私有的库
 SOURCE_DIR = "temp_kicad_source"
 OUTPUT_SQL_FILE = "import.sql"
 
@@ -28,6 +27,50 @@ CORE_FIELDS = {
     "Price": "price",
     "ki_keywords": "keywords"
 }
+
+def clone_kicad_repository(source_dir):
+    REPO_URL = "https://gitlab.com/kicad/libraries/kicad-symbols.git" # 或者你私有的库
+    
+    repo_url = REPO_URL
+    """Clone the KiCad symbols repository"""
+    if os.path.exists(source_dir):
+        shutil.rmtree(source_dir)
+    
+    print(f"Cloning {repo_url}...")
+    subprocess.run(["git", "clone", "--depth=1", repo_url, source_dir], check=True)
+
+def clone_jlcpcb_library(source_dir):
+    """Clone JLCPCB KiCad library and copy symbols to source directory"""
+    temp_jlcpcb_dir = "temp_jlcpcb_source"
+    JLCPCB_REPO_URL = "https://github.com/CDFER/JLCPCB-Kicad-Library.git"
+
+    # Clean up existing directories
+    if os.path.exists(temp_jlcpcb_dir):
+        shutil.rmtree(temp_jlcpcb_dir)
+    if os.path.exists(source_dir):
+        shutil.rmtree(source_dir)
+    
+    # Create source directory
+    os.makedirs(source_dir, exist_ok=True)
+    
+    print(f"Cloning {JLCPCB_REPO_URL}...")
+    subprocess.run(["git", "clone", "--depth=1", JLCPCB_REPO_URL, temp_jlcpcb_dir], check=True)
+    
+    # Move symbols directory contents to source directory
+    jlcpcb_symbols_dir = os.path.join(temp_jlcpcb_dir, "symbols")
+    if os.path.exists(jlcpcb_symbols_dir):
+        print(f"Moving symbols from {jlcpcb_symbols_dir} to {source_dir}...")
+        for item in os.listdir(jlcpcb_symbols_dir):
+            source_item = os.path.join(jlcpcb_symbols_dir, item)
+            dest_item = os.path.join(source_dir, item)
+            if os.path.isfile(source_item):
+                shutil.move(source_item, dest_item)
+            elif os.path.isdir(source_item):
+                shutil.move(source_item, dest_item)
+    
+    # Clean up temporary directory
+    shutil.rmtree(temp_jlcpcb_dir)
+    print("JLCPCB library symbols downloaded successfully.")
 
 def escape_sql_str(value):
     """简单的 SQL 字符串转义"""
@@ -141,11 +184,9 @@ def process_file(filepath, sql_lines):
 
 def main():
     # 1. 清理和下载
-    if os.path.exists(SOURCE_DIR):
-        shutil.rmtree(SOURCE_DIR)
-    
-    print(f"Cloning {REPO_URL}...")
-    subprocess.run(["git", "clone", "--depth=1", REPO_URL, SOURCE_DIR], check=True)
+    # 选择使用哪个库：官方KiCad库或JLCPCB库
+    clone_kicad_repository(SOURCE_DIR)  # 官方KiCad库
+    clone_jlcpcb_library(SOURCE_DIR)  # JLCPCB库
 
     # 2. 准备 SQL 文件
     sql_lines = []
