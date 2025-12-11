@@ -1,0 +1,9 @@
+name = "kicad-component-search" # 项目名字，随便起
+main = "src/worker.js"          # 后面做查询接口时会用到，先占个位
+compatibility_date = "2024-01-01"
+
+# D1 数据库配置
+[[d1_databases]]
+binding = "DB"                  # 代码里调用数据库的变量名
+database_name = "my-kicad-db"   # 你在 CF 后台起的名字
+database_id = "f9e43670-7eab-443b-badb-87cd23421c91" # 通过 npx wrangler d1 list 获取
