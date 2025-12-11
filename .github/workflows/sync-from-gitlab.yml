@@ -1,9 +1,9 @@
 name: Gen KiCad Docs
 
 on:
-  schedule:
-    # 每天 UTC 2:00 (北京时间 10:00) 运行
-    - cron: '0 2 * * *'
+  # schedule:
+  #   # 每天 UTC 2:00 (北京时间 10:00) 运行
+  #   - cron: '0 2 * * *'
   workflow_dispatch: # 允许手动点按钮触发
 
 permissions:
