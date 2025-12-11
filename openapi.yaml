@@ -25,7 +25,8 @@ paths:
       description: |
         Search for KiCad components by keywords. The search looks for matches in 
         symbol names, descriptions, keywords, values, and attributes.
-        Multiple keywords can be provided separated by spaces - all keywords must match.
+        Multiple keywords can be provided separated by spaces - all keywords must match. 
+        **Try less specific keywords for broader results.**
       operationId: searchComponents
       tags:
         - Components
