@@ -34,7 +34,7 @@ jobs:
 
       # 5. 使用 Wrangler 写入 Cloudflare D1
       - name: Execute SQL on D1
-        uses: cloudflare/wrangler-action@v4
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
