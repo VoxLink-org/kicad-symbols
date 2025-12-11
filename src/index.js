@@ -16,7 +16,7 @@ export default {
     // 只处理 /search 路径
     if (url.pathname === "/search") {
       const query = url.searchParams.get("q"); // 获取搜索关键词
-      const limit = parseInt(url.searchParams.get("limit") || "10"); // 默认返回10条
+      const limit = parseInt(url.searchParams.get("limit") || "20"); // 默认返回20条
 
       if (!query) {
         return Response.json({ error: "Missing 'q' parameter" }, { status: 400 });
