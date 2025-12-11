@@ -144,18 +144,15 @@ def main():
     if os.path.exists(SOURCE_DIR):
         shutil.rmtree(SOURCE_DIR)
     
-    # 如果你有自己的私有库，改这里的 URL
-    # 如果是本地测试，可以注释掉这行，手动放文件进去
     print(f"Cloning {REPO_URL}...")
     subprocess.run(["git", "clone", "--depth=1", REPO_URL, SOURCE_DIR], check=True)
 
     # 2. 准备 SQL 文件
     sql_lines = []
     
-    # === 修改点 1: 删除这一行 ===
-    # sql_lines.append("BEGIN TRANSACTION;") 
-    
-    # 建议加上建表语句，防止表不存在报错
+    # === 核心修改点：建表语句 ===
+    # 不需要在这里写 DROP TABLE 了，因为你已经手动删过了。
+    # 关键是加上 UNIQUE(library, symbol)
     sql_lines.append("""
     CREATE TABLE IF NOT EXISTS components (
         id INTEGER PRIMARY KEY,
@@ -170,26 +167,29 @@ def main():
         price TEXT,
         attributes TEXT,
         keywords TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(library, symbol)
     );
     """)
-    # 如果你想每次全量覆盖，可以取消下面这行的注释，但会消耗更多额度
-    # sql_lines.append("DELETE FROM components;") 
     
+    # 重新创建索引 (删表后索引也没了，需要重建)
+    sql_lines.append("CREATE INDEX IF NOT EXISTS idx_symbol ON components(symbol);")
+    sql_lines.append("CREATE INDEX IF NOT EXISTS idx_lcsc ON components(lcsc_id);")
+    # 对 Description 做索引有助于模糊搜索
+    sql_lines.append("CREATE INDEX IF NOT EXISTS idx_desc ON components(description);")
+
     files = [f for f in os.listdir(SOURCE_DIR) if f.endswith(".kicad_sym")]
     files.sort()
     
     print(f"Found {len(files)} symbol files. Generaring SQL...")
     for f in files:
         process_file(os.path.join(SOURCE_DIR, f), sql_lines)
-    # === 修改点 2: 删除这一行 ===
-    # sql_lines.append("COMMIT;")
 
     # 3. 写入文件
     with open(OUTPUT_SQL_FILE, 'w', encoding='utf-8') as f:
         f.write("\n".join(sql_lines))
 
-    print(f"\nSuccess! SQL generated at '{OUTPUT_SQL_FILE}' with {len(sql_lines)-2} statements.")
+    print(f"\nSuccess! SQL generated at '{OUTPUT_SQL_FILE}' with {len(sql_lines)} statements.")
 
 if __name__ == "__main__":
     main()
