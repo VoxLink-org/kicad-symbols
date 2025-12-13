@@ -1,91 +1,116 @@
 openapi: 3.1.0
 info:
-  title: Smart JLCPCB Component Search
+  title: JLCPCB Smart Component Search
   description: >
-    Advanced search for electronic components on JLCPCB.
-    It utilizes specific endpoints for different component types (Resistors, Capacitors, MCUs, etc.) 
-    to provide highly accurate results, combined with detailed electrical specs and datasheets.
-  version: 2.0.0
+    Search for electronic components on JLCPCB/LCSC with real-time stock and pricing.
+    Uses specific sub-databases for higher accuracy (e.g., finding exact resistors).
+  version: 2.1.0
 servers:
-  - url: https://jlc-component-search.wanghsinche.workers.dev
+  - url: https://jlc-component-search.YOUR_SUBDOMAIN.workers.dev
 paths:
   /search:
     get:
       operationId: searchComponents
-      summary: Search for components with specific parameters.
+      summary: Search JLCPCB catalog with specific category routing.
       description: >
-        Use this tool to find parts. 
-        CRITICAL: Always specify the `category` if known (e.g., 'resistor', 'capacitor').
-        This ensures the correct database is queried (e.g., matching resistance values accurately).
+        Search for parts. CRITICAL: Provide the `category` if applicable to get accurate parametric results.
+        If the category is unknown, leave it empty for a generic keyword search.
       parameters:
         - name: category
           in: query
           required: false
           schema:
             type: string
-            enum: [resistor, capacitor, inductor, mosfet, diode, mcu, adc, regulator, led, connector]
-          description: >
-            The type of component. 
-            If not specified, a generic text search is performed (less accurate for passives).
-        
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-          description: >
-            Generic keywords or part number (e.g., "STM32F103", "ADS1292").
-            Use this if `category` is not specified.
-        
-        - name: package
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Footprint/Package (e.g., "0603", "0805", "SOIC-8", "LQFP-48").
-        
+            enum: 
+              # Passives
+              - resistor
+              - capacitor
+              - inductor
+              - potentiometer
+              # Discrete
+              - diode
+              - mosfet
+              - bjt
+              - led
+              # ICs
+              - mcu
+              - arm
+              - risc-v
+              - fpga
+              # Power
+              - ldo
+              - regulator
+              - buck_boost
+              - boost
+              # Analog
+              - adc
+              - dac
+              - sensor_gas
+              - gyroscope
+              # Connectors
+              - header
+              - usb
+              - jst
+              - relay
+              - switch
+              # Display
+              - lcd
+              - oled
+              - led_matrix
+              - led_segment
+              # Comms
+              - wifi
+              - io_expander
+          description: The component type. Select the closest match.
+
         - name: value
           in: query
           required: false
           schema:
             type: string
           description: >
-            The main value of the component. 
-            For Resistors: "10k", "1k", "4.7k".
-            For Capacitors: "10uF", "100nF", "22pF".
-            For Inductors: "10uH".
+            Primary value. 
+            Resistors: "10k", "4.7k". 
+            Capacitors: "100nF", "10uF". 
+            LDOs: "3.3V".
+            Inductors: "10uH".
+            Headers: Pitch "2.54mm".
+
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Generic keywords or Part Number (e.g., "STM32F103", "ADS1292").
+
+        - name: package
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Footprint (e.g., "0603", "SOIC-8", "LQFP-48").
+
+        # 透传参数，无需一个个定义，LLM 会根据语境自动推断，Worker 会自动透传
+        - name: tolerance
+          in: query
+          required: false
+          schema: { type: string }
         
+        - name: voltage
+          in: query
+          required: false
+          schema: { type: string }
+          description: Voltage rating (e.g. "50V" for caps, output voltage for LDOs).
+
         - name: limit
           in: query
           schema:
             type: integer
             default: 5
-        
-        # --- Specific Parameters (Pass through) ---
-        - name: tolerance
-          in: query
-          required: false
-          schema:
-            type: string
-          description: For resistors/capacitors (e.g., "1%", "5%").
-        
-        - name: voltage
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Voltage rating (e.g., "16V", "50V").
-        
-        - name: search
-          in: query
-          required: false
-          schema:
-             type: string
-          description: Additional keyword search within the specific category.
 
       responses:
         '200':
-          description: JSON list of components with stock and specs.
+          description: Component list
           content:
             application/json:
               schema:

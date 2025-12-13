@@ -15,68 +15,129 @@ export default {
 
     if (url.pathname === "/search") {
       const params = url.searchParams;
-      const category = params.get("category"); // 核心参数：类别
+      const category = params.get("category"); // LLM 传入的类别 alias
       const limit = parseInt(params.get("limit") || "5");
 
       try {
         // ==========================================
-        // 第一步：构建智能 JLC Search 请求
+        // 配置表：定义类目路径和特殊参数映射
+        // Key 是 LLM 可能会用的简写，Value 是 JLC 的真实路径
         // ==========================================
-        const baseUrl = "https://jlcsearch.tscircuit.com";
-        let targetPath = "/components/list.json"; // 默认回退到通用搜索
-        let searchParams = new URLSearchParams();
-
-        // 类别映射表 (根据你提供的 OpenAPI 定义)
-        const CATEGORY_MAP = {
-          resistor: "/resistors/list.json",
-          capacitor: "/capacitors/list.json",
-          inductor: "/inductors/list.json", // 假设有，如果没有会 fallback
-          diode: "/diodes/list.json",
-          mosfet: "/mosfets/list.json",
-          mcu: "/microcontrollers/list.json",
-          led: "/leds/list.json",
-          connector: "/headers/list.json", // 简单的连接器映射
-          adc: "/adcs/list.json",
-          regulator: "/voltage_regulators/list.json"
+        const ROUTER_CONFIG = {
+          // --- Passives ---
+          "resistor": { path: "/resistors/list.json", map: { "value": "resistance" } },
+          "capacitor": { path: "/capacitors/list.json", map: { "value": "capacitance" } },
+          "inductor": { path: "/inductors/list.json", map: { "value": "inductance" } }, // 假设有
+          "potentiometer": { path: "/potentiometers/list.json", map: { "value": "maxResistance" } },
+          
+          // --- Discrete ---
+          "diode": { path: "/diodes/list.json", map: { "type": "diode_type" } },
+          "mosfet": { path: "/mosfets/list.json", map: {} },
+          "bjt": { path: "/bjt_transistors/list.json", map: {} },
+          "led": { path: "/leds/list.json", map: {} },
+          
+          // --- ICs / Processors ---
+          "mcu": { path: "/microcontrollers/list.json", map: { "query": "core" } },
+          "arm": { path: "/arm_processors/list.json", map: {} },
+          "risc-v": { path: "/risc_v_processors/list.json", map: {} },
+          "fpga": { path: "/fpgas/list.json", map: {} },
+          
+          // --- Power ---
+          "ldo": { path: "/ldos/list.json", map: { "voltage": "output_voltage" } },
+          "regulator": { path: "/voltage_regulators/list.json", map: { "voltage": "output_voltage" } },
+          "buck_boost": { path: "/buck_boost_converters/list.json", map: {} },
+          "boost": { path: "/boost_converters/list.json", map: {} },
+          
+          // --- Analog / Data ---
+          "adc": { path: "/adcs/list.json", map: { "bits": "resolution" } },
+          "dac": { path: "/dacs/list.json", map: { "bits": "resolution" } },
+          "opamp": { path: "/components/list.json", map: {} }, // 暂时没有专门的 OpAmp 列表，回退通用
+          "sensor_gas": { path: "/gas_sensors/list.json", map: {} },
+          "gyroscope": { path: "/gyroscopes/list.json", map: {} },
+          
+          // --- Connectors / Electromechanical ---
+          "connector": { path: "/components/list.json", map: {} }, // 通用连接器回退
+          "header": { path: "/headers/list.json", map: { "value": "pitch" } },
+          "usb": { path: "/usb_c_connectors/list.json", map: {} },
+          "jst": { path: "/jst_connectors/list.json", map: {} },
+          "pcie": { path: "/pcie_m2_connectors/list.json", map: {} },
+          "relay": { path: "/relays/list.json", map: {} },
+          "switch": { path: "/switches/list.json", map: {} },
+          
+          // --- Displays ---
+          "lcd": { path: "/lcd_display/list.json", map: {} },
+          "oled": { path: "/oled_display/list.json", map: {} },
+          "led_matrix": { path: "/led_dot_matrix_display/list.json", map: {} },
+          "led_segment": { path: "/led_segment_display/list.json", map: {} },
+          
+          // --- Logic / Interface ---
+          "io_expander": { path: "/io_expanders/list.json", map: {} },
+          "wifi": { path: "/wifi_modules/list.json", map: {} },
+          "analog_mux": { path: "/analog_multiplexers/list.json", map: {} }
         };
 
-        // 1. 确定目标 Endpoint
-        if (category && CATEGORY_MAP[category]) {
-          targetPath = CATEGORY_MAP[category];
+        // ==========================================
+        // 第一步：构建请求
+        // ==========================================
+        const baseUrl = "https://jlcsearch.tscircuit.com";
+        let targetPath = "/components/list.json"; // 默认回退
+        let paramMapping = {}; // 当前类别的参数映射规则
+
+        // 1. 确定路径
+        if (category && ROUTER_CONFIG[category]) {
+          targetPath = ROUTER_CONFIG[category].path;
+          paramMapping = ROUTER_CONFIG[category].map || {};
+        } else if (category) {
+          // 如果 LLM 传了一个不在简写表里，但可能在原始列表里的名字（比如 "adcs"）
+          // 尝试直接拼接，看运气
+          targetPath = `/${category.toLowerCase()}/list.json`;
         }
 
-        // 2. 智能参数映射 (把通用的 keys 映射到 API 特定的 keys)
-        // 遍历所有传入参数并透传
+        // 2. 构建 JLC Search 参数
+        let searchParams = new URLSearchParams();
+
+        // 遍历所有传入的 URL 参数
         for (const [key, value] of params) {
           if (key === "category" || key === "limit") continue; // 跳过控制参数
-          searchParams.append(key, value);
+
+          // 检查是否有特殊映射 (例如 value -> resistance)
+          if (paramMapping[key]) {
+            searchParams.append(paramMapping[key], value);
+          } else {
+            // 如果是 'q'，在专用接口通常对应 'search' 或特定字段，
+            // 但大多数接口支持 search 参数作为关键词过滤
+            if (key === "q") {
+              searchParams.append("search", value);
+            } else {
+              // 其他参数直接透传 (例如 package, tolerance)
+              searchParams.append(key, value);
+            }
+          }
         }
 
-        // 3. 特殊处理：如果 LLM 传了通用的 'value'，我们需要根据类别改名
-        const val = params.get("value");
-        if (val) {
-           if (category === "resistor") searchParams.append("resistance", val);
-           else if (category === "capacitor") searchParams.append("capacitance", val);
-           else if (category === "inductor") searchParams.append("inductance", val);
-        }
-
-        // 4. 发起请求
         const jlcUrl = `${baseUrl}${targetPath}?${searchParams.toString()}`;
-        console.log(`Fetching JLC: ${jlcUrl}`); // 调试日志
+        console.log(`[Proxy] Fetching: ${jlcUrl}`);
 
         const searchResp = await fetch(jlcUrl);
-        if (!searchResp.ok) throw new Error(`JLC API Error: ${searchResp.statusText}`);
         
-        let searchData = await searchResp.json();
+        // 如果专用接口 404 (类目不对)，尝试回退到通用接口
+        if (!searchResp.ok) {
+           console.log("[Proxy] Specific category failed, fallback to generic search.");
+           const fallbackUrl = `${baseUrl}/components/list.json?search=${encodeURIComponent(params.get("q") || params.get("value") || "")}`;
+           const fallbackResp = await fetch(fallbackUrl);
+           if (!fallbackResp.ok) throw new Error("JLC API Error");
+           var searchData = await fallbackResp.json();
+        } else {
+           var searchData = await searchResp.json();
+        }
 
-        // JLC API 返回格式有时是 { resistors: [...] } 有时是 { components: [...] }
-        // 我们需要找到那个数组
+        // 3. 提取组件列表 (API 返回结构不统一，动态查找数组)
         let components = [];
-        const keys = Object.keys(searchData);
-        // 找到第一个是数组的 key (通常就是 payload)
-        for (const k of keys) {
-            if (Array.isArray(searchData[k])) {
-                components = searchData[k];
+        // 常见的 Key: 'components', 'resistors', 'capacitors', 'results'
+        // 我们遍历对象的值，找到第一个是数组的
+        for (const val of Object.values(searchData)) {
+            if (Array.isArray(val)) {
+                components = val;
                 break;
             }
         }
@@ -85,13 +146,13 @@ export default {
           return Response.json([], { headers: corsHeaders });
         }
 
-        // 截取并排序
+        // 4. 排序与截取 (优先库存)
         let candidates = components
           .sort((a, b) => (b.stock || 0) - (a.stock || 0))
           .slice(0, limit);
 
         // ==========================================
-        // 第二步：EasyEDA 详情增强 (保持不变，这部分很好用)
+        // 第二步：EasyEDA 详情增强
         // ==========================================
         const lcscCodes = candidates.map(c => `C${c.lcsc}`);
         const formData = new URLSearchParams();
@@ -110,7 +171,7 @@ export default {
         }
 
         // ==========================================
-        // 第三步：合并结果
+        // 第三步：合并输出
         // ==========================================
         const finalResults = candidates.map(baseItem => {
           const code = `C${baseItem.lcsc}`;
@@ -126,15 +187,17 @@ export default {
             description: baseItem.description || attrs["LCSC Part Name"] || "",
             datasheet: attrs["Datasheet"] || null,
             manufacturer: attrs["Manufacturer"] || baseItem.manufacturer || "",
-            // 这里可以根据 category 提取更具体的参数，目前保持通用
             specs: {
+               // 尝试智能提取主要参数
                value: attrs["Resistance"] || attrs["Capacitance"] || attrs["Inductance"] || baseItem.resistance || baseItem.capacitance,
                tolerance: attrs["Tolerance"],
-               voltage: attrs["Voltage - Rated"] || attrs["Voltage - Supply"],
+               voltage: attrs["Voltage - Rated"] || attrs["Voltage - Supply"] || baseItem.voltage_rating,
                temp: attrs["Operating Temperature"],
-               ...baseItem // 把 JLC 返回的特定字段也合并进去 (比如 logic_elements)
+               // 保留 baseItem 里特有的有用字段 (如 mcu 的 core, flash)
+               ...baseItem
             },
-            _raw_attributes: attrs 
+            // 调试用：查看原始属性
+            // _raw_attributes: attrs 
           };
         });
 
@@ -147,6 +210,6 @@ export default {
       }
     }
 
-    return new Response("Smart JLC Router is running.", { headers: corsHeaders });
+    return new Response("JLCPCB Smart Search API is running.", { headers: corsHeaders });
   },
 };
