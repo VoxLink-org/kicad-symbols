@@ -30,3 +30,4 @@ The documentation is automatically generated through the [`gen_kicad_docs.py`](s
 - Quick component search and retrieval
 - Schematic drawing reference
 - Electronic design automation tool integration
+- Use https://mcp-link.vercel.app/connect-api to forward API to MCP for LLM
