@@ -6,7 +6,7 @@ info:
     Uses specific sub-databases for higher accuracy (e.g., finding exact resistors).
   version: 2.1.0
 servers:
-  - url: https://jlc-component-search.YOUR_SUBDOMAIN.workers.dev
+  - url: https://jlc-component-search.wanghsinche.workers.dev
 paths:
   /search:
     get:
