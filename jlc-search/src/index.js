@@ -2,7 +2,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // === 1. CORS 配置 (允许跨域) ===
+    // === 1. CORS 配置 ===
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -13,97 +13,133 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // 只处理 /search
     if (url.pathname === "/search") {
-      const query = url.searchParams.get("q"); // 搜索关键词
-      const limit = parseInt(url.searchParams.get("limit") || "5"); // 默认只查前5个，避免太慢
-
-      if (!query) {
-        return Response.json({ error: "Missing 'q' parameter" }, { status: 400, headers: corsHeaders });
-      }
+      const params = url.searchParams;
+      const category = params.get("category"); // 核心参数：类别
+      const limit = parseInt(params.get("limit") || "5");
 
       try {
         // ==========================================
-        // 第一步：调用 TSCircuit 搜索基础信息 (库存、价格)
+        // 第一步：构建智能 JLC Search 请求
         // ==========================================
-        const searchUrl = `https://jlcsearch.tscircuit.com/components/list.json?search=${encodeURIComponent(query)}`;
-        const searchResp = await fetch(searchUrl);
-        const searchData = await searchResp.json();
+        const baseUrl = "https://jlcsearch.tscircuit.com";
+        let targetPath = "/components/list.json"; // 默认回退到通用搜索
+        let searchParams = new URLSearchParams();
 
-        if (!searchData.components || searchData.components.length === 0) {
+        // 类别映射表 (根据你提供的 OpenAPI 定义)
+        const CATEGORY_MAP = {
+          resistor: "/resistors/list.json",
+          capacitor: "/capacitors/list.json",
+          inductor: "/inductors/list.json", // 假设有，如果没有会 fallback
+          diode: "/diodes/list.json",
+          mosfet: "/mosfets/list.json",
+          mcu: "/microcontrollers/list.json",
+          led: "/leds/list.json",
+          connector: "/headers/list.json", // 简单的连接器映射
+          adc: "/adcs/list.json",
+          regulator: "/voltage_regulators/list.json"
+        };
+
+        // 1. 确定目标 Endpoint
+        if (category && CATEGORY_MAP[category]) {
+          targetPath = CATEGORY_MAP[category];
+        }
+
+        // 2. 智能参数映射 (把通用的 keys 映射到 API 特定的 keys)
+        // 遍历所有传入参数并透传
+        for (const [key, value] of params) {
+          if (key === "category" || key === "limit") continue; // 跳过控制参数
+          searchParams.append(key, value);
+        }
+
+        // 3. 特殊处理：如果 LLM 传了通用的 'value'，我们需要根据类别改名
+        const val = params.get("value");
+        if (val) {
+           if (category === "resistor") searchParams.append("resistance", val);
+           else if (category === "capacitor") searchParams.append("capacitance", val);
+           else if (category === "inductor") searchParams.append("inductance", val);
+        }
+
+        // 4. 发起请求
+        const jlcUrl = `${baseUrl}${targetPath}?${searchParams.toString()}`;
+        console.log(`Fetching JLC: ${jlcUrl}`); // 调试日志
+
+        const searchResp = await fetch(jlcUrl);
+        if (!searchResp.ok) throw new Error(`JLC API Error: ${searchResp.statusText}`);
+        
+        let searchData = await searchResp.json();
+
+        // JLC API 返回格式有时是 { resistors: [...] } 有时是 { components: [...] }
+        // 我们需要找到那个数组
+        let components = [];
+        const keys = Object.keys(searchData);
+        // 找到第一个是数组的 key (通常就是 payload)
+        for (const k of keys) {
+            if (Array.isArray(searchData[k])) {
+                components = searchData[k];
+                break;
+            }
+        }
+
+        if (components.length === 0) {
           return Response.json([], { headers: corsHeaders });
         }
 
-        // 截取前 N 个结果，并按库存排序 (LLM 喜欢有库存的)
-        let candidates = searchData.components
-          .sort((a, b) => b.stock - a.stock) // 库存从大到小
+        // 截取并排序
+        let candidates = components
+          .sort((a, b) => (b.stock || 0) - (a.stock || 0))
           .slice(0, limit);
 
         // ==========================================
-        // 第二步：构建 EasyEDA 的批量查询请求
+        // 第二步：EasyEDA 详情增强 (保持不变，这部分很好用)
         // ==========================================
-        // EasyEDA 需要 "C12345" 格式，但 TSCircuit 返回的是数字 12345
         const lcscCodes = candidates.map(c => `C${c.lcsc}`);
-
-        // 构建 form-data body
         const formData = new URLSearchParams();
         lcscCodes.forEach(code => formData.append("codes[]", code));
 
         const detailResp = await fetch("https://pro.easyeda.com/api/devices/searchByCodes", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
-          },
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: formData
         });
 
         const detailData = await detailResp.json();
-        
-        // 创建一个 Map 方便查找详细信息： Key=C12345, Value=Details
         const detailMap = new Map();
         if (detailData.success && detailData.result) {
-          detailData.result.forEach(item => {
-            detailMap.set(item.product_code, item);
-          });
+          detailData.result.forEach(item => detailMap.set(item.product_code, item));
         }
 
         // ==========================================
-        // 第三步：数据合并与清洗
+        // 第三步：合并结果
         // ==========================================
         const finalResults = candidates.map(baseItem => {
           const code = `C${baseItem.lcsc}`;
           const details = detailMap.get(code);
-
-          // 提取最有用的详细属性
-          const attributes = details ? details.attributes : {};
+          const attrs = details ? details.attributes : {};
           
           return {
             lcsc_id: code,
-            mfr_part: baseItem.mfr, // 型号
-            package: baseItem.package, // 封装
-            stock: baseItem.stock,    // 库存
-            price_usd: baseItem.price, // 价格
-            description: baseItem.description || attributes["LCSC Part Name"] || "",
-            datasheet: attributes["Datasheet"] || null,
-            manufacturer: attributes["Manufacturer"] || "",
-            // 提取关键电气参数 (把 EasyEDA 杂乱的属性整理一下)
+            mfr_part: baseItem.mfr,
+            package: baseItem.package,
+            stock: baseItem.stock,
+            price_usd: baseItem.price,
+            description: baseItem.description || attrs["LCSC Part Name"] || "",
+            datasheet: attrs["Datasheet"] || null,
+            manufacturer: attrs["Manufacturer"] || baseItem.manufacturer || "",
+            // 这里可以根据 category 提取更具体的参数，目前保持通用
             specs: {
-              voltage_supply: attributes["Voltage - Supply"],
-              operating_temp: attributes["Operating Temperature"],
-              resolution: attributes["Resolution(Bits)"],
-              interface: attributes["Interface"],
-              current_iq: attributes["Quiescent Current (Iq)"]
+               value: attrs["Resistance"] || attrs["Capacitance"] || attrs["Inductance"] || baseItem.resistance || baseItem.capacitance,
+               tolerance: attrs["Tolerance"],
+               voltage: attrs["Voltage - Rated"] || attrs["Voltage - Supply"],
+               temp: attrs["Operating Temperature"],
+               ...baseItem // 把 JLC 返回的特定字段也合并进去 (比如 logic_elements)
             },
-            // 保留所有原始属性以防万一
-            // _raw_attributes: attributes 
+            _raw_attributes: attrs 
           };
         });
 
         return new Response(JSON.stringify(finalResults, null, 2), {
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders
-          }
+          headers: { "Content-Type": "application/json", ...corsHeaders }
         });
 
       } catch (err) {
@@ -111,6 +147,6 @@ export default {
       }
     }
 
-    return new Response("JLCPCB Search Worker is running. Try /search?q=ADS1292", { headers: corsHeaders });
+    return new Response("Smart JLC Router is running.", { headers: corsHeaders });
   },
 };
