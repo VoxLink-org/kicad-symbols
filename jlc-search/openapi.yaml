@@ -1,0 +1,93 @@
+openapi: 3.1.0
+info:
+  title: JLCPCB Component Search API
+  description: >
+    A real-time search tool for electronic components from JLCPCB/LCSC.
+    It aggregates pricing, live stock levels, datasheets, and detailed electrical specifications.
+    Use this tool when the user needs to select parts for a PCB design, check availability, or find datasheets.
+  version: 1.0.0
+servers:
+  - url: https://jlc-component-search.wanghsinche.workers.dev
+    description: Production Cloudflare Worker
+
+paths:
+  /search:
+    get:
+      operationId: searchComponents
+      summary: Search for electronic components with stock and technical specs.
+      description: >
+        Searches the JLCPCB catalog. Returns a list of components sorted by stock availability.
+        The response includes the LCSC part number (C-code), pricing in USD, datasheet links, and key electrical parameters.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: >
+            The search query. Can be a specific part number (e.g., "ADS1292", "STM32F103"),
+            a specific LCSC code (e.g., "C12345"), or a generic component description (e.g., "0.1uF 0603 capacitor").
+          example: "ADS1292"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 5
+            maximum: 20
+          description: The maximum number of results to return. Default is 5.
+      responses:
+        '200':
+          description: Successful search results.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    lcsc_id:
+                      type: string
+                      description: The unique LCSC part number (e.g., C528635). Use this for BOMs.
+                    mfr_part:
+                      type: string
+                      description: The manufacturer's part number.
+                    manufacturer:
+                      type: string
+                      description: The name of the component manufacturer.
+                    package:
+                      type: string
+                      description: The physical package/footprint (e.g., TQFP-32, 0603).
+                    stock:
+                      type: integer
+                      description: >
+                        Current available stock at JLCPCB. 
+                        NOTE: Prioritize recommending components with stock > 0.
+                    price_usd:
+                      type: number
+                      format: float
+                      description: Unit price in USD.
+                    description:
+                      type: string
+                      description: General description of the component.
+                    datasheet:
+                      type: string
+                      format: uri
+                      description: >
+                        Direct link to the PDF datasheet. 
+                        Use this if the user asks for technical details not present in the specs.
+                    specs:
+                      type: object
+                      description: >
+                        Key electrical specifications (Voltage, Temperature, Interface, etc.).
+                        Keys vary dynamically based on the component type.
+                      additionalProperties:
+                        type: string
+                      example:
+                        voltage_supply: "4.75V~5.25V"
+                        operating_temp: "-40℃~+85℃"
+                        interface: "SPI"
+                    _raw_attributes:
+                      type: object
+                      description: The raw, unprocessed attributes from the supplier for deep debugging.
+                      nullable: true
